@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xuanthuy-prithvi-unet"
+version = "1.0.0"
+description = "Prithvi-EO-2.0 encoder + U-Net decoder for 11-class land-cover segmentation of Xuan Thuy (Sentinel-2)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [{name = "Xuan Thuy Segmentation Research Team"}]
+dependencies = [
+  "numpy>=1.26,<3",
+  "pandas>=2.2,<3",
+  "rasterio>=1.4,<2",
+  "torch>=2.4,<3",
+  "einops>=0.8,<1",
+  "tqdm>=4.66,<5",
+  # Prithvi encoder sub-modules and pretrained-weight filter. Pinned: the explicit
+  # forward pass in src/prithvi_unet/model/encoder.py is verified against 1.2.12.
+  "terratorch==1.2.12",
+  "timm==1.0.30",
+  "huggingface-hub>=0.25",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10", "segmentation-models-pytorch==0.5.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["src", "."]
