@@ -11,12 +11,19 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Private or generated research assets
-data/
-runs/
-checkpoints/
-outputs/
-artifacts/
+# Private or generated research assets.
+# Folder names start with "/" so they match only at the repository root:
+# a bare "data/" would also hide the source package src/prithvi_unet/data/.
+/data/
+/runs/
+/checkpoints/
+/outputs/
+/artifacts/
+/maps/
+/pred/
+/weights/
+
+# Rasters, vectors and model weights are ignored anywhere in the tree.
 *.pt
 *.pth
 *.ckpt
@@ -33,9 +40,3 @@ artifacts/
 # Notebook scratch files
 .ipynb_checkpoints/
 *.nbconvert.ipynb
-
-# Notebook outputs
-.ipynb_checkpoints/
-maps/
-pred/
-weights/

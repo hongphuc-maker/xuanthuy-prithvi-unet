@@ -15,12 +15,14 @@
 ## Offset
 
 Since processing baseline 04.00 (25 January 2022) ESA shifts L2A values by
-`BOA_ADD_OFFSET = −1000` ([ESA Level-2A products](https://sentinel.esa.int/web/sentinel/technical-guides/sentinel-2-msi/level-2a-algorithms-products)).
+`BOA_ADD_OFFSET = −1000` ([ESA SentiWiki, S2 Products](https://sentiwiki.copernicus.eu/web/s2-products); value −1000: [Copernicus EOPF](https://discourse.eopf.copernicus.eu/t/digital-numbers-and-reflectances-improve-the-documentation-for-sentinel-2/442)).
 Planetary Computer keeps it in the DN and shows how to remove it
 ([baseline-change notebook](https://nbviewer.org/github/microsoft/PlanetaryComputerExamples/blob/main/datasets/sentinel-2-l2a/baseline-change.ipynb)).
 Surface reflectance is therefore ρ = (DN − 1000) / 10000.
 
-Images acquired before 25 January 2022 have no offset. Set `radiometry.dn_offset` to
+Products of a processing baseline below 04.00 have no offset. The acquisition date alone does
+not decide: reprocessed Collection-1 products (baseline 05.00) carry the offset
+([ESA SentiWiki, S2 Processing](https://sentiwiki.copernicus.eu/web/s2-processing)). Set `radiometry.dn_offset` to
 `"auto"` (or pass `--dn-offset auto` to `scripts/predict.py`) to choose the offset per image
 from the `boa_add_offset` / `s2_processing_baseline` tags written by
 `scripts/export_sentinel2.py`, or from the acquisition date if the tags are missing.

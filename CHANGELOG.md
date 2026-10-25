@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1
+
+- Fix: the `.gitignore` rule `data/` also matched the source package `src/prithvi_unet/data/`,
+  so v1.0.0 and v1.1.0 on GitHub could not be imported (`No module named 'prithvi_unet.data'`).
+  Folder rules are now anchored to the repository root (`/data/`, `/runs/`, ...).
+- Test `tests/test_repo_files.py` fails if a `.gitignore` rule hides a project file again.
+- Docs: broken ESA link replaced by SentiWiki; HF `config.json` cited for the Prithvi mean/std.
+
 ## 1.1.0
 
 - Band subsets: `bands` selects bands by name from the GeoTIFFs; pretrained Conv3d channels are

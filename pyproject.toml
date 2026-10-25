@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xuanthuy-prithvi-unet"
-version = "1.1.0"
+version = "1.1.1"
 description = "Prithvi-EO-2.0 encoder + U-Net decoder for 11-class land-cover segmentation of Xuan Thuy (Sentinel-2)"
 readme = "README.md"
 requires-python = ">=3.10"
