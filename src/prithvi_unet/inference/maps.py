@@ -1,4 +1,8 @@
-"""Validation scoring and map export."""
+"""Validation scoring and map export.
+
+Ported from the completed runs, ``validation`` and ``create_map``:
+https://github.com/hongphuc-maker/xuan-thuy-prithvi-segmentation/blob/42290823beeb42e44ec87bb8845e439e10c18735/reference/wce_completed/prithvi_xtseg/inference.py#L61-L123
+"""
 
 from __future__ import annotations
 

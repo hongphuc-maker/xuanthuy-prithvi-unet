@@ -21,9 +21,12 @@ def main() -> None:
     parser.add_argument("--steps", type=int, default=None, help="stop after N optimiser steps (resumable)")
     parser.add_argument("--map-only", action="store_true")
     parser.add_argument("--no-checksums", action="store_true", help="skip SHA-256 checks of the input files")
+    parser.add_argument("--prithvi-weights", default=None,
+                        help="local Prithvi_EO_V2_300M_TL.pt (default: $PRITHVI_WEIGHTS or Hugging Face download)")
     args = parser.parse_args()
 
-    trainer = Trainer(args.config, args.data_root, args.run_dir, verify_checksums=not args.no_checksums)
+    trainer = Trainer(args.config, args.data_root, args.run_dir, verify_checksums=not args.no_checksums,
+                      prithvi_weights=args.prithvi_weights)
     if not args.map_only:
         print(json.dumps(trainer.train(stop_after_steps=args.steps), indent=2))
     if args.map_only or (trainer.run / "TRAINING_COMPLETE.json").exists():

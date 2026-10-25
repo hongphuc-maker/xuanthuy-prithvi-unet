@@ -1,6 +1,8 @@
 """Weighted cross-entropy (WCE) with ignored pixels.
 
-Ported from xuan-thuy-dmi-segmentation @ 0775770, ``xuanthuy_seg/losses/cross_entropy.py``.
+Ported from xuan-thuy-dmi-segmentation @ 0775770:
+    class_weights_from_counts          https://github.com/hongphuc-maker/xuan-thuy-dmi-segmentation/blob/0775770ae87b83b7d2982ed727226128685f3fba/src/xuanthuy_seg/losses/cross_entropy.py#L10-L29
+    deterministic_masked_cross_entropy https://github.com/hongphuc-maker/xuan-thuy-dmi-segmentation/blob/0775770ae87b83b7d2982ed727226128685f3fba/src/xuanthuy_seg/losses/cross_entropy.py#L32-L63
 
 Class weights (computed once from training-pixel counts n_c):
     w_c = sqrt(median(n) / n_c), clipped to [0.5, 5], then divided by their mean (mean = 1)

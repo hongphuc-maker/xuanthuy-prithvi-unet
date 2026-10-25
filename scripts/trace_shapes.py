@@ -22,7 +22,7 @@ def main() -> None:
     frames = len(config["active_dates"])
     model = build_model(config, pretrained=False).eval()
 
-    image = torch.randn(1, 6, frames, 224, 224)
+    image = torch.randn(1, len(config["bands"]), frames, 224, 224)
     temporal = torch.tensor([[[2026.0, 264.0]] * frames])
     location = torch.tensor([[20.25, 106.55]])
     with torch.inference_mode():

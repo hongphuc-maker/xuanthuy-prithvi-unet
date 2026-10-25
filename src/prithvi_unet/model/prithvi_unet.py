@@ -1,16 +1,23 @@
 """Prithvi-UNet: Prithvi-EO-2.0 encoder + simple feature pyramid + U-Net decoder.
 
-Full forward pass for P3 (T = 1); P2 differs only in T = 6 before the neck.
+Full forward pass for P3 (T = 1, C = 6 bands); P2 differs only in T = 6 before the neck.
 
-    image             [B, 6, T, 224, 224]
-    encoder readouts  4 x [B, 1 + 196*T, 1024]          blocks 5, 11, 17, 23
-    feature maps      4 x [B, 1024, 14, 14]             drop CLS, grid, keep target date
-    pyramid           256@56, 512@28, 1024@14, 1024@7    neck
-    decoder           [B, 64, 56, 56]                    3 skips + 1 refinement block
-    head              [B, 11, 56, 56]                    Dropout + Conv 1x1
-    logits            [B, 11, 224, 224]                  bilinear x4 (no weights)
+    image             [B, C, T, 224, 224]
+    encoder readouts  4 x [B, 1 + 196*T, 1024]          blocks 5, 11, 17, 23       encoder.py
+    feature maps      4 x [B, 1024, 14, 14]             drop CLS, grid, target date neck.py
+    pyramid           256@56, 512@28, 1024@14, 1024@7    neck.py
+    decoder           [B, 64, 56, 56]                    3 skips + 1 refinement     decoder.py
+    head              [B, K, 56, 56]                     Dropout + Conv 1x1         decoder.py
+    logits            [B, K, 224, 224]                   bilinear x4 (no weights)
+
+The completed runs assembled the same parts with TerraTorch ``EncoderDecoderFactory``
+(``PixelWiseModel.forward``: encoder -> neck -> decoder -> head -> F.interpolate(..., "bilinear")):
+https://github.com/IBM/terratorch/blob/v1.2.12/terratorch/models/pixel_wise_model.py#L120-L150
+The old builder: https://github.com/hongphuc-maker/xuan-thuy-prithvi-segmentation/blob/42290823beeb42e44ec87bb8845e439e10c18735/reference/wce_completed/prithvi_xtseg/model.py#L59-L91
 
 ``forward_trace`` returns every intermediate tensor for inspection.
+To change the architecture, edit ``PrithviUNet.__init__`` / ``forward_trace``: each stage is
+one attribute (encoder, to_feature_map, pyramid, decoder, head). See docs/EXTENDING.md.
 """
 
 from __future__ import annotations
@@ -36,44 +43,49 @@ class PrithviUNet(nn.Module):
         head_dropout: float = 0.1,
         target_index: int = -1,
         gradient_checkpointing: bool = False,
+        bands: list[str] | None = None,
+        final_upsample: str = "bilinear",
     ) -> None:
         super().__init__()
         if len(out_indices) != 4:
             raise ValueError("The pyramid has four levels, so the encoder must give four readouts")
+        if final_upsample not in ("bilinear", "nearest"):
+            raise ValueError("final_upsample must be 'bilinear' or 'nearest'")
         self.num_classes = num_classes
-        self.encoder = PrithviEncoder(num_frames, out_indices, gradient_checkpointing)
+        self.final_upsample = final_upsample
+        self.encoder = PrithviEncoder(num_frames, out_indices, gradient_checkpointing, bands)
         self.to_feature_map = TokensToFeatureMap(num_frames, self.encoder.grid_size, target_index)
         self.pyramid = SimpleFeaturePyramid(self.encoder.embed_dim)
         self.decoder = UNetDecoder(self.pyramid.out_channels, tuple(decoder_channels))
         self.head = SegmentationHead(self.decoder.out_channels, num_classes, head_dropout)
 
-    def forward(
-        self, image: torch.Tensor, temporal_coords: torch.Tensor, location_coords: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, image: torch.Tensor, temporal_coords: torch.Tensor, location_coords: torch.Tensor
+                ) -> torch.Tensor:
         return self.forward_trace(image, temporal_coords, location_coords)["logits"]
 
-    def forward_trace(
-        self, image: torch.Tensor, temporal_coords: torch.Tensor, location_coords: torch.Tensor
-    ) -> dict[str, Any]:
+    def forward_trace(self, image: torch.Tensor, temporal_coords: torch.Tensor, location_coords: torch.Tensor
+                      ) -> dict[str, Any]:
         readouts = self.encoder(image, temporal_coords, location_coords)
         feature_maps = [self.to_feature_map(tokens) for tokens in readouts]
         pyramid = self.pyramid(feature_maps)
         decoded = self.decoder(pyramid)
         logits_low = self.head(decoded)
-        # Bilinear interpolation of class scores back to the input size (no weights).
-        logits = F.interpolate(logits_low, size=image.shape[-2:], mode="bilinear", align_corners=False)
-        return {
-            "readouts": readouts,
-            "feature_maps": feature_maps,
-            "pyramid": pyramid,
-            "decoded": decoded,
-            "logits_low": logits_low,
-            "logits": logits,
-        }
+        # Resize class scores back to the input size (no weights). "bilinear" is what the
+        # completed runs used (PixelWiseModel, pixel_wise_model.py L136); "nearest" is only
+        # for comparisons and needs no retraining.
+        if self.final_upsample == "bilinear":
+            logits = F.interpolate(logits_low, size=image.shape[-2:], mode="bilinear", align_corners=False)
+        else:
+            logits = F.interpolate(logits_low, size=image.shape[-2:], mode="nearest")
+        return {"readouts": readouts, "feature_maps": feature_maps, "pyramid": pyramid, "decoded": decoded,
+                "logits_low": logits_low, "logits": logits}
 
 
-def build_model(config: dict, pretrained: bool = True) -> PrithviUNet:
-    """Build the model from an experiment config (``configs/*.json``)."""
+def build_model(config: dict, pretrained: bool = True, prithvi_weights: str | None = None) -> PrithviUNet:
+    """Build the model from an experiment config (``configs/*.json``).
+
+    ``prithvi_weights``: local copy of Prithvi_EO_V2_300M_TL.pt (else $PRITHVI_WEIGHTS, else Hugging Face).
+    """
     m = config["model"]
     if m.get("backbone", "prithvi_eo_v2_300_tl") != "prithvi_eo_v2_300_tl":
         raise ValueError("Only prithvi_eo_v2_300_tl is implemented")
@@ -87,10 +99,12 @@ def build_model(config: dict, pretrained: bool = True) -> PrithviUNet:
         head_dropout=float(m["head_dropout"]),
         target_index=-1,  # the target date is the last active date (checked in config.py)
         gradient_checkpointing=bool(m.get("gradient_checkpointing", False)),
+        bands=list(config["bands"]),
+        final_upsample=m.get("final_upsample", "bilinear"),
     )
     provenance: dict[str, Any] = {"pretrained": bool(pretrained)}
     if pretrained:
-        provenance.update(model.encoder.load_pretrained(config["model_hf_revision"]))
+        provenance.update(model.encoder.load_pretrained(config["model_hf_revision"], prithvi_weights))
     model.pretrained_provenance = provenance
     return model
 

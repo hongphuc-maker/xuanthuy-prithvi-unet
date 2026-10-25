@@ -38,3 +38,4 @@ artifacts/
 .ipynb_checkpoints/
 maps/
 pred/
+weights/

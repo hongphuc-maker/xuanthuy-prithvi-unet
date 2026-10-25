@@ -1,6 +1,6 @@
 """Train one step, validate, select, map and predict on a small synthetic scene (CPU).
 
-Slow (~2 min, full 300M model, random weights): run with ``RUN_SLOW=1 pytest tests/test_end_to_end.py``.
+Slow (~2 min per variant, full 300M model, random weights): run with ``RUN_SLOW=1 pytest tests/test_end_to_end.py``.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import os
 import numpy as np
 import pytest
 import rasterio
+import torch
 from rasterio.transform import from_origin
 
 pytest.importorskip("terratorch")
@@ -37,12 +38,13 @@ def write_image(path, day, shape, seed):
         dst.update_tags(acquisition_date=day)
 
 
-def test_train_map_predict(tmp_path):
+@pytest.mark.parametrize("variant", ["six_bands", "four_bands_frozen_auto_offset"])
+def test_train_map_predict(tmp_path, variant):
     label, _ = synthetic()
     shape = label.shape
     data = tmp_path / "data"
     data.mkdir()
-    base = load_config(CONFIGS / "p3_single_date.json")
+    base = load_config(CONFIGS / ("p3_single_date.json" if variant == "six_bands" else "p3_single_date_4bands.json"))
     images = []
     for k, spec in enumerate(base["images"]):
         write_image(data / spec["path"], spec["date"], shape, k)
@@ -55,13 +57,21 @@ def test_train_map_predict(tmp_path):
     config["label"] = {**config["label"], "path": "label.tif", "sha256": sha256_file(data / "label.tif")}
     config["split"] = SPLIT
     config["training"].update(effective_batch_size=4, maximum_steps=1, validation_interval_steps=1, save_interval_steps=1)
+    if variant != "six_bands":
+        config["training"]["freeze_encoder"] = True
+        config["radiometry"]["dn_offset"] = "auto"
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps(config))
 
     trainer = Trainer(config_path, data, tmp_path / "run")
     trainer.load_model(pretrained=False)  # no download in tests
+    if variant != "six_bands":
+        assert not any(p.requires_grad for p in trainer.model.encoder.parameters())
+        encoder_before = trainer.model.encoder.vit.patch_embed.proj.weight.detach().clone()
     result = trainer.train(stop_after_steps=1)
     assert result["completed"] and result["step"] == 1
+    if variant != "six_bands":
+        assert torch.equal(trainer.model.encoder.vit.patch_embed.proj.weight, encoder_before)
     assert (tmp_path / "run" / "best_any.pt").exists()
     written = trainer.map()
     with rasterio.open(written["classes"]) as src:
@@ -70,6 +80,8 @@ def test_train_map_predict(tmp_path):
 
     new_image = tmp_path / "new.tif"
     write_image(new_image, "2026-10-01", shape, 99)
-    maps = predict_new_dates(config_path, tmp_path / "run" / "best_any.pt", [new_image], tmp_path / "pred")
+    maps = predict_new_dates(config_path, tmp_path / "run" / "best_any.pt", [new_image], tmp_path / "pred",
+                             final_upsample="nearest")
     with rasterio.open(maps["classes"]) as src:
-        assert src.tags()["map_date"] == "2026-10-01"
+        assert src.tags()["map_date"] == "2026-10-01" and src.tags()["final_upsample"] == "nearest"
+        assert src.tags()["bands"] == ",".join(config["bands"])

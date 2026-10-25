@@ -6,7 +6,11 @@ probabilities of all windows that contain it are averaged, then argmax.
 Why overlap: a convolution with zero padding sees less context near a window
 border, so border predictions are weaker. With stride 112 every pixel away from
 the raster edge is also covered by a window in which it lies far from the border.
-This plays the role of the "overlap-tile" strategy of the original U-Net paper.
+This plays the role of the "overlap-tile" strategy of the original U-Net paper
+(Ronneberger et al. 2015, Sec. 2 and Fig. 2, https://arxiv.org/abs/1505.04597).
+
+Ported from the completed runs, ``starts`` / ``mosaic``:
+https://github.com/hongphuc-maker/xuan-thuy-prithvi-segmentation/blob/42290823beeb42e44ec87bb8845e439e10c18735/reference/wce_completed/prithvi_xtseg/inference.py#L31-L58
 """
 
 from __future__ import annotations

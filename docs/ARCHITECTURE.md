@@ -1,5 +1,7 @@
 # Architecture
 
+Upstream code and papers for every row: [`REFERENCES.md`](REFERENCES.md).
+
 Shapes for P3 (T = 1, batch B = 1). P2 (T = 6) differs only before the neck:
 1,177 tokens instead of 197. Output of `python scripts/trace_shapes.py`.
 

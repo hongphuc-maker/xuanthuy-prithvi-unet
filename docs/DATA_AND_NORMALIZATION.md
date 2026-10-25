@@ -20,6 +20,11 @@ Planetary Computer keeps it in the DN and shows how to remove it
 ([baseline-change notebook](https://nbviewer.org/github/microsoft/PlanetaryComputerExamples/blob/main/datasets/sentinel-2-l2a/baseline-change.ipynb)).
 Surface reflectance is therefore ρ = (DN − 1000) / 10000.
 
+Images acquired before 25 January 2022 have no offset. Set `radiometry.dn_offset` to
+`"auto"` (or pass `--dn-offset auto` to `scripts/predict.py`) to choose the offset per image
+from the `boa_add_offset` / `s2_processing_baseline` tags written by
+`scripts/export_sentinel2.py`, or from the acquisition date if the tags are missing.
+
 Check in our data: water reflects almost nothing in SWIR. Over the ten 2026 images,
 the 1st percentile of B11 and B12 DN is 1,017 and 1,022 (ρ ≈ 0.002). Without the
 offset, water would have 10 % SWIR reflectance, which is not physical.

@@ -1,16 +1,23 @@
 """Neck: turn four same-size ViT readouts into a four-level feature pyramid.
 
-Two steps:
-
 1. ``TokensToFeatureMap`` (FIXED, no weights). Drop CLS, lay the tokens back on
-   their 14 x 14 grid and keep the target date.
-   Replaces TerraTorch ``ReshapeTokensToImage`` + the project neck ``TargetTimeSlice``.
+   their 14 x 14 grid and keep the target date. Replaces two necks of the completed runs:
+   - TerraTorch ``ReshapeTokensToImage`` (rearrange "batch (t h w) e -> batch (t e) h w"):
+     https://github.com/IBM/terratorch/blob/v1.2.12/terratorch/models/necks.py#L224-L319
+   - project ``TargetTimeSlice`` (reshape [B, T, D, H, W], take the last date):
+     https://github.com/hongphuc-maker/xuan-thuy-prithvi-segmentation/blob/42290823beeb42e44ec87bb8845e439e10c18735/reference/wce_completed/prithvi_xtseg/model.py#L15-L32
 
 2. ``SimpleFeaturePyramid`` (LEARNED). Resample the four 14 x 14 maps to strides
-   4, 8, 16, 32 so that a U-Net decoder has skip connections.
-   Same layers as TerraTorch ``LearnedInterpolateToPyramidal`` (design of the
-   "simple feature pyramid" in ViTDet, Li et al. 2022), with GroupNorm in place of
-   BatchNorm because training uses a micro-batch of one image.
+   4, 8, 16, 32 so that a U-Net decoder has skip connections. Same layers as
+   TerraTorch ``LearnedInterpolateToPyramidal``:
+   https://github.com/IBM/terratorch/blob/v1.2.12/terratorch/models/necks.py#L343-L384
+   which follows the "simple feature pyramid" of ViTDet (Li et al. 2022, Fig. 2 and Sec. 3),
+   https://arxiv.org/abs/2203.16527
+   GroupNorm replaces BatchNorm because training uses a micro-batch of one image
+   (project ``replace_batch_norm``, same 32-group rule):
+   https://github.com/hongphuc-maker/xuan-thuy-prithvi-segmentation/blob/42290823beeb42e44ec87bb8845e439e10c18735/reference/wce_completed/prithvi_xtseg/model.py#L44-L56
+   GroupNorm paper (Wu and He 2018): https://arxiv.org/abs/1803.08494
+   GELU paper (Hendrycks and Gimpel 2016): https://arxiv.org/abs/1606.08415
 
 Shapes for one readout, D = 1024:
     tokens [B, 1 + T*196, D] -> feature map [B, D, 14, 14]
@@ -33,8 +40,8 @@ from torch import nn
 def group_norm(channels: int, max_groups: int = 32) -> nn.GroupNorm:
     """GroupNorm with gcd(32, C) groups and at least two channels per group.
 
-    Same rule as ``replace_batch_norm`` in the completed runs; gives 32 groups for
-    every layer of this model (64 ... 1024 channels).
+    Same rule as ``replace_batch_norm`` of the completed runs (link above); gives 32
+    groups for every layer of this model (64 ... 1024 channels).
     """
     groups = math.gcd(max_groups, channels)
     while channels // groups < 2 and groups > 1:
@@ -46,8 +53,9 @@ class TokensToFeatureMap(nn.Module):
     """[B, 1 + T*H*W, D] tokens -> [B, D, H, W] feature map of one date. No weights.
 
     Tokens are ordered (date, row, column) because Conv3d output [B, D, T, H, W] is
-    flattened in that order. Each token keeps its own grid cell; the 24 blocks mix
-    content between tokens but never move them.
+    flattened in that order (``PatchEmbed.forward``: x.flatten(2).transpose(1, 2)).
+    Each token keeps its own grid cell; the 24 blocks mix content between tokens but
+    never move them.
     """
 
     def __init__(self, num_frames: int, grid_size: tuple[int, int] = (14, 14), target_index: int = -1) -> None:
@@ -66,21 +74,25 @@ class TokensToFeatureMap(nn.Module):
 
 
 class SimpleFeaturePyramid(nn.Module):
-    """Four 14 x 14 maps -> pyramid at strides 4, 8, 16, 32 (LEARNED except pool/identity)."""
+    """Four 14 x 14 maps -> pyramid at strides 4, 8, 16, 32 (LEARNED except pool/identity).
+
+    Attribute names follow the stride they produce; TerraTorch calls them fpn1..fpn4
+    (``LearnedInterpolateToPyramidal.__init__``, necks.py L349-L363).
+    """
 
     def __init__(self, embed_dim: int = 1024) -> None:
         super().__init__()
         d = embed_dim
-        # Shallowest readout -> finest level: two learned x2 upsamplings, 14 -> 28 -> 56.
+        # fpn1. Shallowest readout -> finest level: two learned x2 upsamplings, 14 -> 28 -> 56.
         self.to_stride4 = nn.Sequential(
             nn.ConvTranspose2d(d, d // 2, kernel_size=2, stride=2),
             group_norm(d // 2),
             nn.GELU(),
             nn.ConvTranspose2d(d // 2, d // 4, kernel_size=2, stride=2),
         )
-        self.to_stride8 = nn.ConvTranspose2d(d, d // 2, kernel_size=2, stride=2)  # 14 -> 28
-        self.to_stride16 = nn.Identity()  # stays 14
-        self.to_stride32 = nn.MaxPool2d(kernel_size=2, stride=2)  # 14 -> 7, no weights
+        self.to_stride8 = nn.ConvTranspose2d(d, d // 2, kernel_size=2, stride=2)  # fpn2: 14 -> 28
+        self.to_stride16 = nn.Identity()  # fpn3: stays 14
+        self.to_stride32 = nn.MaxPool2d(kernel_size=2, stride=2)  # fpn4: 14 -> 7, no weights
         self.out_channels = (d // 4, d // 2, d, d)
 
     def forward(self, maps: list[torch.Tensor]) -> list[torch.Tensor]:

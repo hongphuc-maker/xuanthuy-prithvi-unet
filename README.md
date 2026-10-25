@@ -8,7 +8,7 @@ function as in the completed P2/P3 runs (checked by `tests/test_legacy_equivalen
 but every layer is now written out in plain PyTorch in `src/prithvi_unet/model/`.
 
 ```
-image [B, 6 bands, T dates, 224, 224]
+image [B, C bands (6, or a subset), T dates, 224, 224]
   │  radiometry (fixed)          DN -> reflectance -> z-score with Prithvi mean/std        data/radiometry.py
   ▼
   Conv3d 1x16x16 (learned)       patch embedding: 6 x 16 x 16 -> 1024 per patch           model/encoder.py
@@ -35,8 +35,8 @@ recall >= 0.05 on the three rare classes), so maps are exploratory.
 ## Install
 
 ```bash
-git clone <this repository> && cd xuanthuy-prithvi-unet
-pip install -e ".[test]"
+git clone https://github.com/hongphuc-maker/xuanthuy-prithvi-unet.git && cd xuanthuy-prithvi-unet
+pip install -e ".[test]"          # add ,export for scripts/export_sentinel2.py
 pytest                     # fast tests; RUN_SLOW=1 pytest for the end-to-end CPU run
 python scripts/trace_shapes.py --config configs/p3_single_date.json   # every shape and parameter count
 ```
@@ -67,7 +67,14 @@ python scripts/predict.py --config configs/p3_single_date.json --checkpoint runs
 ```
 
 Checkpoints from the old repository load directly (converted on the fly, see
-`src/prithvi_unet/model/legacy.py`).
+`src/prithvi_unet/model/legacy.py`). Other areas, other years, fewer bands, other
+hyper-parameters and new modules: [`docs/EXTENDING.md`](docs/EXTENDING.md).
+
+## Notebooks (browser Colab or VS Code)
+
+`notebooks/colab_train_and_predict.ipynb` runs in Colab in the browser, in VS Code with
+the Google Colab extension (code runs on the Colab VM; data comes from Google Drive), or
+on a local Python kernel (CPU is enough for prediction, a CUDA GPU is needed for training).
 
 ## Repository layout
 
@@ -87,7 +94,8 @@ src/prithvi_unet/
   training/loss.py       class weights and weighted cross-entropy
   training/trainer.py    optimisation, validation, selection, resume, final map
   inference/             sliding windows, metrics, GeoTIFF export, new-date prediction
-scripts/                 command-line entry points
+scripts/                 train, predict, export_sentinel2, band_statistics, set_band_metadata,
+                         trace_shapes, convert_legacy_checkpoint
 tests/                   unit tests, equivalence with the old model and old sampling
 docs/                    architecture, data and normalisation, code walkthrough, migration
 ```
@@ -98,6 +106,8 @@ docs/                    architecture, data and normalisation, code walkthrough,
 - [`docs/DATA_AND_NORMALIZATION.md`](docs/DATA_AND_NORMALIZATION.md): source, offset, formula, band statistics.
 - [`docs/CODE_WALKTHROUGH.md`](docs/CODE_WALKTHROUGH.md): one training step and one prediction, file by file.
 - [`docs/MIGRATION.md`](docs/MIGRATION.md): what changed from the old repository and how equivalence was checked.
+- [`docs/EXTENDING.md`](docs/EXTENDING.md): new images, new areas, fewer bands, tuning, new modules.
+- [`docs/REFERENCES.md`](docs/REFERENCES.md): for each module, the upstream code (pinned permalinks) and paper it follows.
 
 ## License
 

@@ -1,6 +1,8 @@
 """Training loop: data preparation, WCE with gradient accumulation, validation, model selection.
 
-Same procedure as the completed P2/P3 runs (old ``prithvi_xtseg/training.py``):
+Same procedure as the completed P2/P3 runs (old ``Experiment.train``):
+https://github.com/hongphuc-maker/xuan-thuy-prithvi-segmentation/blob/42290823beeb42e44ec87bb8845e439e10c18735/reference/wce_completed/prithvi_xtseg/training.py#L106-L188
+
 
 * Optimiser: AdamW, two learning rates: encoder 1e-5 (pretrained, small steps),
   neck + decoder + head 1e-4 (new layers); weight decay 0.01.
@@ -13,10 +15,13 @@ Same procedure as the completed P2/P3 runs (old ``prithvi_xtseg/training.py``):
   (max macro-F1 among checkpoints that pass the acceptance gate); early stop after
   6 validations without +0.001.
 * Resumable: ``latest_resume.pt`` stores model, optimiser, scaler, RNG and history.
+* Option ``training.freeze_encoder``: the encoder is not trained (only neck, decoder and
+  head), e.g. to test how much the pretrained features alone explain.
 """
 
 from __future__ import annotations
 
+import gc
 import importlib.metadata
 import json
 import random
@@ -65,8 +70,9 @@ def _versions() -> dict[str, str]:
 
 class Trainer:
     def __init__(self, config_path: str | Path, data_root: str | Path, run_dir: str | Path,
-                 verify_checksums: bool = True) -> None:
+                 verify_checksums: bool = True, prithvi_weights: str | None = None) -> None:
         self.config = load_config(config_path)
+        self.prithvi_weights = prithvi_weights
         self.run = Path(run_dir)
         self.run.mkdir(parents=True, exist_ok=True)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -126,7 +132,11 @@ class Trainer:
     def load_model(self, pretrained: bool = True) -> torch.nn.Module:
         t = self.config["training"]
         seed_everything(t["seed"], t["deterministic_algorithms"])
-        self.model = build_model(self.config, pretrained=pretrained).to(self.device)
+        self.model = build_model(self.config, pretrained=pretrained, prithvi_weights=self.prithvi_weights)
+        if t.get("freeze_encoder", False):
+            for p in self.model.encoder.parameters():
+                p.requires_grad_(False)
+        self.model.to(self.device)
         return self.model
 
     # ------------------------------------------------------------------ training
@@ -145,8 +155,8 @@ class Trainer:
         encoder = [p for p in self.model.encoder.parameters() if p.requires_grad]
         encoder_ids = {id(p) for p in encoder}
         new_layers = [p for p in self.model.parameters() if p.requires_grad and id(p) not in encoder_ids]
-        return torch.optim.AdamW([{"params": encoder, "lr": t["encoder_lr"]},
-                                  {"params": new_layers, "lr": t["decoder_lr"]}], weight_decay=t["weight_decay"])
+        groups = [{"params": encoder, "lr": t["encoder_lr"]}, {"params": new_layers, "lr": t["decoder_lr"]}]
+        return torch.optim.AdamW([g for g in groups if g["params"]], weight_decay=t["weight_decay"])  # frozen encoder -> 1 group
 
     def _payload(self, summary: dict | None = None) -> dict[str, Any]:
         return {"format": CHECKPOINT_FORMAT, "model": self.model.state_dict(), "method_hash": self.method_hash,
@@ -263,8 +273,10 @@ class Trainer:
         path = self.selected_checkpoint()
         if self.model is None:
             self.load_model(pretrained=False)
-        payload = torch.load(path, map_location=self.device, weights_only=False)
+        gc.collect()  # free optimiser state from train() before loading another copy of the weights
+        payload = torch.load(path, map_location="cpu", weights_only=False, mmap=True)
         self.model.load_state_dict(payload["model"], strict=True)
+        del payload
         arrays = predict_map(self.model, self.scene, self.device, len(self.config["class_map"]),
                              self.config["split"]["patch_policy"]["inference_stride"])
         tags = {"target_date": self.config["target_date"], "input_dates": ",".join(self.config["active_dates"]),

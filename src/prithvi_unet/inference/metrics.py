@@ -1,4 +1,9 @@
-"""Confusion-matrix metrics over the 11 fixed classes and the acceptance gate."""
+"""Confusion-matrix metrics over the K fixed classes and the acceptance gate.
+
+Ported from the completed runs, ``metrics`` and the gate in ``validation``:
+https://github.com/hongphuc-maker/xuan-thuy-prithvi-segmentation/blob/42290823beeb42e44ec87bb8845e439e10c18735/reference/wce_completed/prithvi_xtseg/inference.py#L14-L28
+https://github.com/hongphuc-maker/xuan-thuy-prithvi-segmentation/blob/42290823beeb42e44ec87bb8845e439e10c18735/reference/wce_completed/prithvi_xtseg/inference.py#L73-L77
+"""
 
 from __future__ import annotations
 
