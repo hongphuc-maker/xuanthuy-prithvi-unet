@@ -1,14 +1,22 @@
 # Changelog
 
-## Unreleased
+## 1.1.3
+
+- Executed example `notebooks/examples/xuanthuy_example.ipynb` (run on v1.1.2, Colab T4): installation
+  checks, data, a 20-step run, the completed P3 runs, maps of Xuan Thuy (1 Oct 2026) and Thai Thuy
+  (21 Sep 2026) with agreement between checkpoints and code versions.
+- Notebooks: a clone left on the Colab machine is reused only if it is at `GIT_REF`; the quickstart
+  warns when pip replaced a numpy already loaded in the kernel (restart needed).
+- Package version set to 1.1.3 (`__init__.py`, `pyproject.toml`); tag v1.1.2 still reported 1.1.1.
+  The version is part of a run's `method_hash`: run folders created with 1.1.1 cannot be resumed with 1.1.3.
+
+## 1.1.2
 
 - Notebook `notebooks/colab_train_and_predict.ipynb` rewritten as a guided quickstart: session setup,
   installation checks, image checks, mapping with any checkpoint (config read from the checkpoint),
   map comparison, training with config changes or new images/labels (`config_for_new_data`),
   20-step speed and memory test, results plots, scoring checkpoints on the validation band,
   Sentinel-2 export, checkpoint conversion. Edit only cells marked `# EDIT`.
-- Executed example `notebooks/examples/xuanthuy_example.ipynb`: checks, data, a 20-step run, the
-  completed P3 runs, maps of Xuan Thuy (1 Oct 2026) and Thai Thuy (21 Sep 2026), validation scores per class.
 - `scripts/clean_notebook.py`: tidies an executed notebook (progress bars, colour codes, widget state)
   and refuses errors, token-like strings and oversized files before a commit.
 - Fix: `tests/test_repo_files.py` ignores the `*.egg-info` folder written by `pip install -e`.
