@@ -75,6 +75,11 @@ hyper-parameters and new modules: [`docs/EXTENDING.md`](docs/EXTENDING.md).
 `notebooks/colab_train_and_predict.ipynb` runs in Colab in the browser, in VS Code with
 the Google Colab extension (code runs on the Colab VM; data comes from Google Drive), or
 on a local Python kernel (CPU is enough for prediction, a CUDA GPU is needed for training).
+It walks through every feature (installation checks, image checks, mapping with any checkpoint,
+training with changed settings or new images and labels, scoring checkpoints, Sentinel-2 export);
+only the cells marked `# EDIT` need changes.
+`notebooks/examples/xuanthuy_example.ipynb` is an executed run on the project data (Xuan Thuy and
+Thai Thuy maps, P2 and P3 scores) to see the expected outputs without running anything.
 
 ## Repository layout
 

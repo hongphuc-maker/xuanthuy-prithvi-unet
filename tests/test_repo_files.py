@@ -23,7 +23,8 @@ SKIP_PARTS = {"__pycache__", ".ipynb_checkpoints", ".pytest_cache"}
 def test_no_project_file_is_gitignored():
     files = [p.relative_to(ROOT).as_posix()
              for folder in TRACKED_FOLDERS for p in (ROOT / folder).rglob("*")
-             if p.is_file() and not SKIP_PARTS.intersection(p.parts) and p.suffix != ".pyc"]
+             if p.is_file() and not SKIP_PARTS.intersection(p.parts) and p.suffix != ".pyc"
+             and not any(part.endswith(".egg-info") for part in p.parts)]   # written by pip install -e
     assert files, "no project files found"
     # --no-index: judge by the .gitignore rules alone, also for files not added yet
     result = subprocess.run(["git", "check-ignore", "--no-index", "--verbose", *files],
