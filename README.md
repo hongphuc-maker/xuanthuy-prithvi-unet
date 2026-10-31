@@ -23,14 +23,37 @@ image [B, C bands (6, or a subset), T dates, 224, 224]
   bilinear x4 (fixed)            -> [B, 11, 224, 224]                                     model/prithvi_unet.py
 ```
 
-| Experiment | Input dates | Config | Validation macro-F1 (completed run) |
-| --- | --- | --- | ---: |
-| P2 multi-temporal | 6 (9 Jan to 21 Sep 2026) | `configs/p2_multitemporal.json` | 0.443 |
-| P3 single-date | 1 (21 Sep 2026) | `configs/p3_single_date.json` | 0.448 |
+## Results
 
-Macro-F1 is measured on a vertical validation band against historical labels of
-unknown date; no run passed the acceptance gate (all 11 classes predicted and
-recall >= 0.05 on the three rare classes), so maps are exploratory.
+Agreement with the **1,037 verified points** of Xuan Thuy (7 classes), on maps of **1 October 2026**,
+an image that no model saw in training. OA = share of points where the map gives the point's class.
+
+| Model | Input | Config | OA, verified points | Macro-F1, 7 point classes | Validation macro-F1 (selection) |
+| --- | --- | --- | ---: | ---: | ---: |
+| U-Net from scratch (`xuanthuy-segmentation`, run E0w) | 1 date, 6 bands | other repository | 0.661 | 0.554 | 0.415 |
+| Prithvi P2 multi-temporal | 6 dates, 6 bands | `configs/p2_multitemporal.json` | **0.875** | **0.838** | 0.443 |
+| Prithvi P3 single-date (completed run) | 1 date, 6 bands | `configs/p3_single_date.json` | 0.859 | 0.814 | 0.448 |
+| Prithvi P3 single-date (re-run with this package) | 1 date, 6 bands | `configs/p3_single_date.json` | 0.866 | 0.833 | 0.429 |
+
+Thai Thuy, 21 September 2026 (area not used in training, 616 points, 6 classes): P2 0.601,
+P3 completed run 0.646, P3 re-run 0.623.
+
+How to read it:
+
+* On the training image (21 Sep) the U-Net (0.924) and P2 (0.922) agree equally well with the points; on
+  1 Oct the U-Net drops to 0.661 while Prithvi stays near 0.87 (paired test over points: P3 re-run right
+  where the U-Net is wrong 238 times, the reverse 25 times). The U-Net's errors are mostly water classes
+  (Vbn, Vcs, Bgt). The two pipelines also differ outside the encoder (normalisation, decoder, training
+  recipe), so the gap is not yet attributed to the pretrained encoder alone.
+* The points are of unconfirmed date (agreement, not dated accuracy), cover 7 of the 11 classes (none
+  for Dc, DK, trống, Gt), and 886 of them lie in the training area: the 21 Sep scores are optimistic.
+  See [`data/README.md`](data/README.md).
+* Checkpoints are still chosen by macro-F1 over all 11 classes on the validation band (last column),
+  never by the points. No run passed the acceptance gate (all 11 classes predicted and recall >= 0.05 on
+  the three rare classes), so the maps are exploratory.
+
+Reproduce a score: `python scripts/score_points.py --points data/xuanthuy/verified_points_shapefiles.zip --maps <map>_classes.tif`
+(the maps come from `scripts/predict.py`; checkpoints are not in the repository).
 
 ## Install
 
@@ -41,18 +64,19 @@ pytest                     # fast tests; RUN_SLOW=1 pytest for the end-to-end CP
 python scripts/trace_shapes.py --config configs/p3_single_date.json   # every shape and parameter count
 ```
 
-## Data (not in the repository)
+## Data (in `data/`, 192 MB)
 
-Six-band GeoTIFFs exported from Microsoft Planetary Computer (`sentinel-2-l2a`),
-bands B02, B03, B04, B8A, B11, B12 on a 10 m EPSG:32648 grid (1,374 x 1,821),
-DN with the L2A offset, an `acquisition_date` tag, and the label raster
-`rasterized_vector_categorized.tif`. File names and SHA-256 checksums are in the
-configs. See [`docs/DATA_AND_NORMALIZATION.md`](docs/DATA_AND_NORMALIZATION.md).
+Everything needed to train and map is in the repository: Sentinel-2 L2A six-band GeoTIFFs of
+Xuan Thuy (10 dates) and Thai Thuy (12 dates) from Microsoft Planetary Computer (`sentinel-2-l2a`),
+bands B02, B03, B04, B8A, B11, B12 on a 10 m EPSG:32648 grid, DN with the L2A offset and an
+`acquisition_date` tag; the Xuan Thuy label raster `rasterized_vector_categorized.tif`; and the verified
+points of both areas. Files, dates, checksums and limits: [`data/README.md`](data/README.md).
+Export and normalisation: [`docs/DATA_AND_NORMALIZATION.md`](docs/DATA_AND_NORMALIZATION.md).
 
 ## Train and map (GPU, e.g. Colab)
 
 ```bash
-python scripts/train.py --config configs/p3_single_date.json --data-root /content/data --run-dir /content/runs/p3
+python scripts/train.py --config configs/p3_single_date.json --data-root data/xuanthuy --run-dir runs/p3
 ```
 
 Downloads the pinned Prithvi weights from Hugging Face, prepares patches, trains
@@ -63,7 +87,8 @@ writes the 21 September map. Interrupted runs resume from `latest_resume.pt`.
 
 ```bash
 python scripts/predict.py --config configs/p3_single_date.json --checkpoint runs/p3/best_any.pt \
-    --images data/Sentinel2_2026-10-01_S2C_MSIL2A_20261001T_HSTDNNXUANTHUY_6bands_10m.tif --out maps/
+    --images data/xuanthuy/Sentinel2_2026-10-01_S2C_MSIL2A_20261001T_HSTDNNXUANTHUY_6bands_10m.tif --out maps/p3
+python scripts/score_points.py --points data/xuanthuy/verified_points_shapefiles.zip --maps maps/p3/2026-10-01_classes.tif
 ```
 
 Checkpoints from the old repository load directly (converted on the fly, see
@@ -73,10 +98,11 @@ hyper-parameters and new modules: [`docs/EXTENDING.md`](docs/EXTENDING.md).
 ## Notebooks (browser Colab or VS Code)
 
 `notebooks/colab_train_and_predict.ipynb` runs in Colab in the browser, in VS Code with
-the Google Colab extension (code runs on the Colab VM; data comes from Google Drive), or
+the Google Colab extension (code runs on the Colab VM; data comes with the clone, results go to Google Drive), or
 on a local Python kernel (CPU is enough for prediction, a CUDA GPU is needed for training).
 It walks through every feature (installation checks, image checks, mapping with any checkpoint,
-training with changed settings or new images and labels, scoring checkpoints, Sentinel-2 export);
+scoring maps on the verified points, training with changed settings or new images and labels,
+scoring checkpoints, Sentinel-2 export);
 only the cells marked `# EDIT` need changes.
 `notebooks/examples/xuanthuy_example.ipynb` is an executed run on the project data (Xuan Thuy and
 Thai Thuy maps, P2 and P3 scores) to see the expected outputs without running anything.
@@ -85,6 +111,7 @@ Thai Thuy maps, P2 and P3 scores) to see the expected outputs without running an
 
 ```
 configs/                 one JSON per experiment (same schema as the completed runs)
+data/                    Sentinel-2 images, label raster and verified points (data/README.md)
 src/prithvi_unet/
   config.py              load and validate a config
   data/radiometry.py     DN -> model input (offset, reflectance, z-score)
@@ -98,9 +125,10 @@ src/prithvi_unet/
   model/legacy.py        old checkpoint -> new layout
   training/loss.py       class weights and weighted cross-entropy
   training/trainer.py    optimisation, validation, selection, resume, final map
-  inference/             sliding windows, metrics, GeoTIFF export, new-date prediction
-scripts/                 train, predict, export_sentinel2, band_statistics, set_band_metadata,
-                         trace_shapes, convert_legacy_checkpoint
+  inference/             sliding windows, metrics, GeoTIFF export, new-date prediction,
+                         agreement with verified points (points.py)
+scripts/                 train, predict, score_points, export_sentinel2, band_statistics,
+                         set_band_metadata, trace_shapes, convert_legacy_checkpoint
 tests/                   unit tests, equivalence with the old model and old sampling
 docs/                    architecture, data and normalisation, code walkthrough, migration
 ```
@@ -116,4 +144,6 @@ docs/                    architecture, data and normalisation, code walkthrough,
 
 ## License
 
-BSD 3-Clause. Data and checkpoints are not distributed.
+Code: BSD 3-Clause. Sentinel-2 images: contain modified Copernicus Sentinel data 2026.
+The label raster and the verified points are project reference data, not covered by the code licence
+(see `data/README.md`). Checkpoints are not distributed.

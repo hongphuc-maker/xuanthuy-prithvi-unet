@@ -14,7 +14,6 @@ Thumbs.db
 # Private or generated research assets.
 # Folder names start with "/" so they match only at the repository root:
 # a bare "data/" would also hide the source package src/prithvi_unet/data/.
-/data/
 /runs/
 /checkpoints/
 /outputs/
@@ -36,6 +35,11 @@ Thumbs.db
 *.prj
 *.cpg
 *.gpkg
+*.aux.xml
+
+# Except the project data in data/ (see data/README.md), distributed with the code.
+!/data/**/*.tif
+!/data/**/*.zip
 
 # Notebook scratch files
 .ipynb_checkpoints/

@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.0
+
+- Data in the repository (`data/`, 192 MB): Sentinel-2 six-band images of Xuan Thuy (10 dates) and Thai Thuy
+  (12 dates), the Xuan Thuy label raster and the verified points of both areas (1,037 and 616 points), with
+  checksums, provenance and limits in `data/README.md`. `.gitignore` re-includes `data/**/*.tif|zip` and
+  ignores `*.aux.xml`; `tests/test_repo_files.py` now also checks `data/`.
+- Agreement with verified points: `prithvi_unet.inference.points` (point shapefiles read with the standard
+  library, reprojected to the map grid) and `scripts/score_points.py`; same rule as the completed runs
+  (reproduces 955 / 1,036 = 0.922 for P2 on 21 Sep). Tests in `tests/test_points.py`.
+- README reports OA on the verified points for maps of 1 Oct 2026 (an image not used in training):
+  U-Net 0.661, P2 0.875, P3 completed run 0.859, P3 re-run 0.866; Thai Thuy 21 Sep in the text.
+  Validation macro-F1 stays the checkpoint-selection metric and is shown in its own column.
+- Quickstart notebook: data paths point to the repository (`DATA_ROOT = REPO/data/xuanthuy`, `THAI_DATA`);
+  new step 4.4 scores a map on the verified points.
+- Version 1.2.0 (part of `method_hash`: run folders of 1.1.x cannot be resumed with 1.2.0).
+
 ## 1.1.3
 
 - Executed example `notebooks/examples/xuanthuy_example.ipynb` (run on v1.1.2, Colab T4): installation

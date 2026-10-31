@@ -10,7 +10,8 @@
 | Grid | EPSG:32648, 10 m, 1,374 × 1,821; 20 m bands resampled bilinearly to 10 m (WarpedVRT) |
 | Values | raw L2A DN, uint16, nodata 0; no offset removed and no scaling at export |
 | Cloud mask | none (SCL not exported); 12 Aug has visible cloud, 30 Mar is unusually bright in the visible bands |
-| Export code | `notebooks/00_sentinel2_export.ipynb` of the old repository |
+| Export code | `notebooks/00_sentinel2_export.ipynb` of the old repository; `scripts/export_sentinel2.py` here |
+| Files | `data/xuanthuy/` (10 dates) and `data/thaithuy/` (12 dates), checksums in [`data/README.md`](../data/README.md) |
 
 ## Offset
 
